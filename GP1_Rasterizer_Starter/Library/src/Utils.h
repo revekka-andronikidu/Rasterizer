@@ -183,6 +183,8 @@ namespace dae
 		
 		bool IsPointInTriangle(const Vector3& point, const std::vector<Vertex>& triangle)
 		{
+			
+			assert((triangle.size() == 3) && "Not a triangle");
 			// If AP × AB, BP × BC, and CP × CA all have the same sign, then P is inside triangle ABC
 			float d1, d2, d3;
 			Vector3 A, B, C;

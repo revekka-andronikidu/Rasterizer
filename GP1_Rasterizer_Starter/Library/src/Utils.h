@@ -203,5 +203,50 @@ namespace dae
 
 			return !(has_neg && has_pos);
 		}
+
+		bool IsPointInTriangle(const Vector3& point, const std::vector<Vertex_Out>& triangle)
+		{
+
+			assert((triangle.size() == 3) && "Not a triangle");
+			// If AP × AB, BP × BC, and CP × CA all have the same sign, then P is inside triangle ABC
+			float d1, d2, d3;
+			Vector3 A, B, C;
+			bool has_neg, has_pos;
+
+			A = triangle[0].position;
+			B = triangle[1].position;
+			C = triangle[2].position;
+
+			d1 = sign(A, B, point);
+			d2 = sign(B, C, point);
+			d3 = sign(C, A, point);
+
+			has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+			has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+			return !(has_neg && has_pos);
+		}
+
+		float CalculateInterpolatedZ(const std::vector<Vertex_Out>& triangle, const float w0, const float w1, const float w2)
+		{
+			const float part1 = (1.0f / triangle[0].position.z) * w0;
+			const float part2 = (1.0f / triangle[1].position.z) * w1;
+			const float part3 = (1.0f / triangle[2].position.z) * w2;
+
+			const float total = part1 + part2 + part3;
+
+			return (1 / total); // z interpolated;
+		}
+
+		float CalculateInterpolatedW(const std::vector<Vertex_Out>& triangle, const float w0, const float w1, const float w2)
+		{
+			const float part1 = (1.0f / triangle[0].position.w) * w0;
+			const float part2 = (1.0f / triangle[1].position.w) * w1;
+			const float part3 = (1.0f / triangle[2].position.w) * w2;
+
+			const float total = part1 + part2 + part3;
+
+			return (1 / total); // w interpolated;
+		}
 	}
 }

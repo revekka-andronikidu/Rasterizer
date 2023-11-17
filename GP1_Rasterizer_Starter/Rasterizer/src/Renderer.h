@@ -13,6 +13,7 @@ namespace dae
 	class Texture;
 	struct Mesh;
 	struct Vertex;
+	struct Vertex_Out;
 	class Timer;
 	class Scene;
 
@@ -33,6 +34,7 @@ namespace dae
 		bool SaveBufferToImage() const;
 
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const;
+		void VertexTransformationFunction(Mesh& meshes);
 
 	private:
 		SDL_Window* m_pWindow{};
@@ -49,7 +51,15 @@ namespace dae
 		int m_Height{};
 
 		float m_AspectRatio{};
-		
+
+		Texture* m_pTexture;
+
+		enum class Mode
+		{
+			Texture,
+			Buffer
+		};
+		Mode m_Mode{};
 
 		//private functions
 		void RasterizationOnly();
@@ -57,5 +67,13 @@ namespace dae
 		void BarycenticCoordinates();
 		void DepthBuffer();
 		void BoundingBoxOptimization();
+		void W2_QuadNoOptimization();
+		void W2_Quad();
+
+		void RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2) const;
+		void RenderTriangle(const Vertex& v0,const Vertex& v1,const Vertex& v2);
+		
 	};
 }
+
+

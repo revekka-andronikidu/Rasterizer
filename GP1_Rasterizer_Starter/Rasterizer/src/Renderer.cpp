@@ -712,14 +712,19 @@ void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const 
 	int minY = std::min({ v0.position.y, v1.position.y, v2.position.y });;
 	int maxY = std::max({ v0.position.y, v1.position.y, v2.position.y });;
 
-	if (minX < 0) minX = 0;
-	if (maxX > m_Width) maxX = m_Width;
+	// Add margin to prevent seethrough lines between quads
+	const float margin{ 1.f };
+	minX -= margin;
+	minY -= margin;
+	maxX += margin;
+	maxY += margin;
 
-	if (minY < 0) minY = 0;
-	if (maxY > m_Height) maxY = m_Height;
-
-
-
+	// Make sure the boundingbox is on the screen
+	minX = Clamp(minX, 0, m_Width);
+	minY = Clamp(minY, 0,m_Height);
+	maxX = Clamp(maxX, 0, m_Width);
+	maxY = Clamp(maxY, 0, m_Height);
+	
 	for (int px{ minX }; px < maxX; ++px)
 	{
 		for (int py{ minY }; py < maxY; ++py)
@@ -731,16 +736,13 @@ void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const 
 			Vector3 point{ float(px) + 0.5f, float(py) + 0.5f , 0 };
 			const int pixelIdx{ px + py * m_Width };
 
-			
-			//if (Utils::IsPointInTriangle(point, triangle))
-			//{
-				float W0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
-				float W1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
-				float W2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
-
-				const bool isInTriangle = W0 > 0 && W1 > 0 && W2 > 0;
-				if (isInTriangle)
+				//const bool isInTriangle = W0 > 0 && W1 > 0 && W2 > 0;
+				if (Utils::IsPointInTriangle(point, triangle))
 				{
+					float W0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
+					float W1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
+					float W2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
+
 					//const float depth0{ v0.position.z };
 					//const float depth1{ v1.position.z };
 					//const float depth2{ v2.position.z };
@@ -797,7 +799,6 @@ void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const 
 						break;
 					}
 				}
-			//}
 		}
 	}
 }

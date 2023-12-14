@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "Camera.h"
+#include "DataTypes.h"
 
 struct SDL_Window;
 struct SDL_Surface;
@@ -36,6 +37,8 @@ namespace dae
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const;
 		void VertexTransformationFunction(Mesh& meshes);
 
+	
+
 	private:
 		SDL_Window* m_pWindow{};
 
@@ -52,14 +55,20 @@ namespace dae
 
 		float m_AspectRatio{};
 
+		bool m_F4Held{false};
+
 		Texture* m_pTexture;
 
 		enum class Mode
 		{
 			Texture,
-			Buffer
+			Buffer,
+			END
 		};
 		Mode m_Mode{};
+
+		Mesh* m_pMesh;
+
 
 		//private functions
 		void RasterizationOnly();
@@ -71,7 +80,9 @@ namespace dae
 		void W2_Quad();
 
 		void RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2) const;
-		void RenderTriangle(const Vertex& v0,const Vertex& v1,const Vertex& v2);
+		void NDCtoScreenSpace(Vertex_Out& v0, Vertex_Out& v1, Vertex_Out& v2);
+		void RenderMeshes(std::vector<Mesh> meshes_world);
+		//void RenderTriangle(const Vertex& v0,const Vertex& v1,const Vertex& v2);
 		
 	};
 }

@@ -8,9 +8,9 @@ namespace dae
 	{
 		Vector3 position{};
 		ColorRGB color{colors::White};
-		Vector2 uv{}; //W2
-		//Vector3 normal{}; //W4
-		//Vector3 tangent{}; //W4
+		Vector2 uv{}; //weight2
+		Vector3 normal{}; //W4
+		Vector3 tangent{}; //W4
 		//Vector3 viewDirection{}; //W4
 	};
 
@@ -19,9 +19,14 @@ namespace dae
 		Vector4 position{};
 		ColorRGB color{ colors::White };
 		Vector2 uv{};
-		//Vector3 normal{};
-		//Vector3 tangent{};
+		Vector3 normal{};
+		Vector3 tangent{};
 		//Vector3 viewDirection{};
+
+		bool operator==(const Vertex_Out& other) const 
+		{
+			return (position == other.position) && (color == other.color) && (uv == other.uv) && (normal == other.normal) && (tangent == other.tangent);
+		}
 	};
 
 	enum class PrimitiveTopology
@@ -38,5 +43,30 @@ namespace dae
 
 		std::vector<Vertex_Out> vertices_out{};
 		Matrix worldMatrix{};
+
+		inline void RotateY(float angle)
+		{
+			worldMatrix = Matrix::CreateRotationY(angle * TO_RADIANS) * worldMatrix;
+		}
+
+		inline void RotateX(float angle)
+		{
+			worldMatrix = Matrix::CreateRotationX(angle * TO_RADIANS) * worldMatrix;
+		}
+
+		inline void RotateZ(float angle)
+		{
+			worldMatrix = Matrix::CreateRotationZ(angle * TO_RADIANS) * worldMatrix;
+		}
+
+		inline void Translate(float x, float y, float z)
+		{
+			worldMatrix = Matrix::CreateTranslation(x, y, z) * worldMatrix;
+		}
+
+		inline void Translate(const Vector3& v)
+		{
+			worldMatrix = Matrix::CreateTranslation(v) * worldMatrix;
+		}
 	};
 }

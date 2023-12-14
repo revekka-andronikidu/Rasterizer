@@ -57,4 +57,12 @@ namespace dae
 		if (v > 1.f) return 1.f;
 		return v;
 	}
+
+	inline float Remap(float input, float min, float max)
+	{
+		// Clamp gives a value between min & max
+		// substracting min results in the same difference but shifted towards the 0 point
+		// dividing by the difference between max and min will result in a value between 0-1
+		return (Clamp(input, min, max) - min) / (max - min);
+	}
 }

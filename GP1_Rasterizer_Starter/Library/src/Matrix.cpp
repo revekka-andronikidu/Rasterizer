@@ -144,16 +144,22 @@ namespace dae {
 
 	Matrix Matrix::CreateLookAtLH(const Vector3& origin, const Vector3& forward, const Vector3& up)
 	{
-		//TODO W1
+		//TODO weight1
 
 		return {};
 	}
 
 	Matrix Matrix::CreatePerspectiveFovLH(float fov, float aspect, float zn, float zf)
 	{
-		//TODO W3
+		Matrix projectionMatrix
+		{ 
+			{1.f / (fov * aspect), 0.f , 0.f, 0.f},
+			{0.f, 1.f / fov, 0.f, 0.f},
+			{0.f, 0.f, zf / (zf - zn), 1.f},
+			{0.f, 0.f, -(zf * zn) / (zf - zn), 0.f}
+		};
 
-		return {};
+		return projectionMatrix;
 	}
 
 	Vector3 Matrix::GetAxisX() const

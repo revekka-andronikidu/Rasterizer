@@ -31,10 +31,14 @@ namespace dae
 		float totalPitch{};
 		float totalYaw{};
 
+		float nearPlane{ 0.1f };
+		float farPlane{ 100.f };
+
 		const float movementSpeed{ 3.f };
 
 		Matrix invViewMatrix{};
 		Matrix viewMatrix{};
+		Matrix projectionMatrix{};
 
 		void Initialize(float _fovAngle = 90.f, Vector3 _origin = {0.f,0.f,0.f}, float _aspectRatio = 1.f)
 		{
@@ -44,6 +48,8 @@ namespace dae
 			origin = _origin;
 
 			aspectRatio = _aspectRatio;
+
+			CalculateProjectionMatrix();
 		}
 
 		void CalculateViewMatrix()
@@ -72,9 +78,7 @@ namespace dae
 
 		void CalculateProjectionMatrix()
 		{
-			//TODO W3
-
-			//ProjectionMatrix => Matrix::CreatePerspectiveFovLH(...) [not implemented yet]
+			projectionMatrix = Matrix::CreatePerspectiveFovLH(fov, aspectRatio, nearPlane, farPlane);
 			//DirectX Implementation => https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxmatrixperspectivefovlh
 		}
 
@@ -90,7 +94,12 @@ namespace dae
 
 			//Update Matrices
 			CalculateViewMatrix();
-			//CalculateProjectionMatrix(); //Try to optimize this - should only be called once or when fov/aspectRatio changes
+			CalculateProjectionMatrix(); //Try to optimize this - should only be called once or when fov/aspectRatio changes
+		}
+
+		inline bool ShouldVertexBeClipped(const Vector4& v) const
+		{
+			return v.x < -1.f || v.x > 1.f || v.y < -1.f || v.y > 1.f;
 		}
 
 		void KeyboardInput()

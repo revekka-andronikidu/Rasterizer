@@ -29,16 +29,42 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 	m_pDepthBufferPixels = new float[m_Width * m_Height];
 
-	
+
 
 	//Initialize Camera
-	m_Camera.Initialize(60.f, { .0f,.0f,-10.f });
+	m_Camera.Initialize(60.f, { .0f, 5.f,-20.f });
 
 	m_AspectRatio = m_Width / float(m_Height);
-	
 	m_Mode = Mode::Texture;
+	m_pTexture = Texture::LoadFromFile("Resources/tuktuk.png");
 
-	m_pTexture = Texture::LoadFromFile("Resources/uv_grid_2.png");
+	//meshes
+	/*m_pMesh = new Mesh
+	{
+		{
+			Vertex{{ -3.0f,  3.0f, -2.0f},{1,1,1},{ 0.0f, 0.0f}},
+			Vertex{ {  0.0f,  3.0f, -2.0f},{1,1,1},{ 0.5f, 0.0f} },
+			Vertex{ {  3.0f,  3.0f, -2.0f},{1,1,1},{ 1.0f, 0.0f} },
+			Vertex{ { -3.0f,  0.0f, -2.0f},{1,1,1},{ 0.0f, 0.5f} },
+			Vertex{ {  0.0f,  0.0f, -2.0f},{1,1,1},{ 0.5f, 0.5f} },
+			Vertex{ {  3.0f,  0.0f, -2.0f},{1,1,1},{ 1.0f, 0.5f} },
+			Vertex{ { -3.0f, -3.0f, -2.0f},{1,1,1},{ 0.0f, 1.0f} },
+			Vertex{ {  0.0f, -3.0f, -2.0f},{1,1,1},{ 0.5f, 1.0f} },
+			Vertex{ {  3.0f, -3.0f, -2.0f},{1,1,1},{ 1.0f, 1.0f} },
+		},
+		{
+			3,0,4,1,5,2,
+			2,6,
+			6,3,7,4,8,5
+		},
+		PrimitiveTopology::TriangleStrip,
+	};*/
+
+	m_pMesh = new Mesh();
+	Utils::ParseOBJ("Resources/tuktuk.obj", m_pMesh->vertices, m_pMesh->indices);
+	
+	//m_pMesh->Translate(0.f, 0.f, 10.f);
+	
 }
 
 Renderer::~Renderer()
@@ -50,6 +76,34 @@ Renderer::~Renderer()
 void Renderer::Update(Timer* pTimer)
 {
 	m_Camera.Update(pTimer);
+
+	constexpr const float rotationSpeed{ 30.f };
+	m_pMesh->RotateY(rotationSpeed * pTimer->GetElapsed());
+
+	const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
+	if (pKeyboardState[SDL_SCANCODE_F4])
+	{
+		if (!m_F4Held)
+		{
+			m_Mode = static_cast<Mode>((static_cast<int>(m_Mode) + 1) % (static_cast<int>(Mode::END)));
+
+
+			std::cout << "[RENDERMODE] ";
+			switch (m_Mode)
+			{
+			case dae::Renderer::Mode::Texture:
+				std::cout << "Texture\n";
+				break;
+			case dae::Renderer::Mode::Buffer:
+				std::cout << "Depth Buffer\n";
+				break;
+			}
+		}
+		m_F4Held = true;
+	}
+	else
+		m_F4Held = false;
+
 }
 
 void Renderer::Render()
@@ -57,37 +111,15 @@ void Renderer::Render()
 	//@START
 	//Lock BackBuffer
 	SDL_LockSurface(m_pBackBuffer);
+
+	std::fill_n(m_pDepthBufferPixels, (m_Width * m_Height), FLT_MAX); //reset depth buffer
+	SDL_FillRect(m_pBackBuffer, NULL, SDL_MapRGB(m_pBackBuffer->format, 0, 0, 0)); //clear background
 	
 
 	//RENDER LOGIC
-	//RasterizationOnly(); 
-	//ProjectionStage();
-	//BarycenticCoordinates();
-	//DepthBuffer();
-	//BoundingBoxOptimization();
-	//W2_QuadNoOptimization();
-	W2_Quad();
-
-	//for (int px{}; px < m_Width; ++px)
-	//{
-	//	for (int py{}; py < m_Height; ++py)
-	//	{
-	//		RasterizationOnly(px, py);
-	//		/*float gradient = px / static_cast<float>(m_Width);
-	//		gradient += py / static_cast<float>(m_Width);
-	//		gradient /= 2.0f;
-	//
-	//		ColorRGB finalColor{ gradient, gradient, gradient };*/
-	//
-	//		//Update Color in Buffer
-	//		/*finalColor.MaxToOne();
-	//
-	//		m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
-	//			static_cast<uint8_t>(finalColor.r * 255),
-	//			static_cast<uint8_t>(finalColor.g * 255),
-	//			static_cast<uint8_t>(finalColor.b * 255));*/
-	//	}
-	//}
+	std::vector<Mesh> meshes_world;
+	meshes_world.push_back(*m_pMesh);
+	RenderMeshes(meshes_world);
 
 	//@END
 	//Update SDL Surface
@@ -98,35 +130,61 @@ void Renderer::Render()
 
 void Renderer::VertexTransformationFunction(Mesh& mesh)
 {
-		mesh.vertices_out.clear();
-		mesh.vertices_out.reserve(mesh.vertices.size());
+	//WorldViewProjectionMatrix = WorldMatrix ∗ ViewMatrix ∗ ProjectionMatrix
+	//mesh.worldMatrix = Matrix::CreateRotationY(m_Camera.totalYaw);
+	Matrix worldViewProjectionMatrix{ mesh.worldMatrix * m_Camera.viewMatrix * m_Camera.projectionMatrix };
+		
+	mesh.vertices_out.clear();
+	mesh.vertices_out.reserve(mesh.vertices.size());
+
+		/*Week 1 & 2*/
+		//for (auto& vertex : mesh.vertices)
+		//{
+		//	//from world space to camera(view) space by multiplying with inverse of camera matrix
+		//	Vertex_Out viewSpaceVertex {};  //view space 
+		//	viewSpaceVertex.position = m_Camera.invViewMatrix.TransformPoint({ vertex.position, 1.f });
+		//
+		//	Vertex_Out projectedVertex{}; //projection space
+		//	projectedVertex.position.x = viewSpaceVertex.position.x / viewSpaceVertex.position.z;
+		//	projectedVertex.position.y = viewSpaceVertex.position.y / viewSpaceVertex.position.z;
+		//	projectedVertex.position.z = viewSpaceVertex.position.z;
+		//
+		//	projectedVertex.position.x = projectedVertex.position.x / (m_Camera.fov * m_AspectRatio);
+		//	projectedVertex.position.y = projectedVertex.position.y / m_Camera.fov;
+		//
+		//	Vertex_Out screenSpaceVertex{}; //screen space
+		//
+		//	screenSpaceVertex.position.x = ((projectedVertex.position.x + 1) / 2) * m_Width;
+		//	screenSpaceVertex.position.y = ((1 - projectedVertex.position.y) / 2) * m_Height;
+		//	screenSpaceVertex.position.z = projectedVertex.position.z;
+		//
+		//	screenSpaceVertex.color = vertex.color;
+		//	screenSpaceVertex.uv = vertex.uv;
+		//	mesh.vertices_out.emplace_back(screenSpaceVertex);
+		//}
 
 		for (auto& vertex : mesh.vertices)
 		{
+			Vertex_Out vertex_out{ Vector4{}, vertex.color, vertex.uv, vertex.normal, vertex.tangent };
 
-			//from world space to camera(view) space by multiplying with inverse of camera matrix
-			Vertex_Out viewSpaceVertex {};  //view space 
-			viewSpaceVertex.position = m_Camera.invViewMatrix.TransformPoint({ vertex.position, 1.f });
+			vertex_out.position = worldViewProjectionMatrix.TransformPoint({ vertex.position, 1.0f });
+			//vertex_out.viewDirection = Vector3{ vertex_out.position.x, vertex_out.position.y, vertex_out.position.z }.Normalized();
 
-			Vertex_Out projectedVertex{}; //projection space
-			projectedVertex.position.x = viewSpaceVertex.position.x / viewSpaceVertex.position.z;
-			projectedVertex.position.y = viewSpaceVertex.position.y / viewSpaceVertex.position.z;
-			projectedVertex.position.z = viewSpaceVertex.position.z;
+			vertex_out.normal = mesh.worldMatrix.TransformVector(vertex.normal);
+			vertex_out.tangent = mesh.worldMatrix.TransformVector(vertex.tangent);
 
-			projectedVertex.position.x = projectedVertex.position.x / (m_Camera.fov * m_AspectRatio);
-			projectedVertex.position.y = projectedVertex.position.y / m_Camera.fov;
+			//perspective divide to put vertices in NDC
+			const float invertedViewSpaceW{ 1 / vertex_out.position.w };
+			vertex_out.position.x *= invertedViewSpaceW;
+			vertex_out.position.y *= invertedViewSpaceW;
+			vertex_out.position.z *= invertedViewSpaceW;
 
-			Vertex_Out screenSpaceVertex{}; //screen space
+			vertex_out.position.x = vertex_out.position.x / m_AspectRatio;// / (m_Camera.fov * m_AspectRatio);
+			vertex_out.position.y = vertex_out.position.y  ;// / m_Camera.fov;
 
-			screenSpaceVertex.position.x = ((projectedVertex.position.x + 1) / 2) * m_Width;
-			screenSpaceVertex.position.y = ((1 - projectedVertex.position.y) / 2) * m_Height;
-			screenSpaceVertex.position.z = projectedVertex.position.z;
-
-			screenSpaceVertex.color = vertex.color;
-			screenSpaceVertex.uv = vertex.uv;
-			mesh.vertices_out.emplace_back(screenSpaceVertex);
-		
-	}
+			//emplace back because we made vOut just to store in this vector
+			mesh.vertices_out.emplace_back(vertex_out);
+		}
 }
 
 bool Renderer::SaveBufferToImage() const
@@ -246,12 +304,12 @@ void Renderer::BarycenticCoordinates()
 
 				float area = Vector2::Cross(v1 - v0, v2 - v0);
 
-				float W0 = Vector2::Cross(v2 - v1, pixel - v1) / area;
-				float W1 = Vector2::Cross(v0 - v2, pixel - v2) / area;
-				float W2 = Vector2::Cross(v1 - v0, pixel - v0) / area;
+				float weight0 = Vector2::Cross(v2 - v1, pixel - v1) / area;
+				float weight1 = Vector2::Cross(v0 - v2, pixel - v2) / area;
+				float weight2 = Vector2::Cross(v1 - v0, pixel - v0) / area;
 
 				//Interpolated Color 𝑽𝒆𝒓𝒕𝒆𝒙𝑪𝒐𝒍𝒐𝒓𝟎∗𝑾𝟎 + 𝑽𝒆𝒓𝒕𝒆𝒙𝑪𝒐𝒍𝒐𝒓𝟏∗𝑾𝟏 + 𝑽𝒆𝒓𝒕𝒆𝒙𝑪𝒐𝒍𝒐𝒓𝟐∗𝑾𝟐		
-				finalColor = (vertices[0].color * W0) + (vertices[1].color * W1) + (vertices[2].color * W2);
+				finalColor = (vertices[0].color * weight0) + (vertices[1].color * weight1) + (vertices[2].color * weight2);
 			}
 
 			//Update Color in Buffer
@@ -316,18 +374,18 @@ void Renderer::DepthBuffer()
 
 				if (Utils::IsPointInTriangle(point, triangle))
 				{
-					float W0 = Vector2::Cross(v2 - v1, pixel - v1) / area;
-					float W1 = Vector2::Cross(v0 - v2, pixel - v2) / area;
-					float W2 = Vector2::Cross(v1 - v0, pixel - v0) / area;
+					float weight0 = Vector2::Cross(v2 - v1, pixel - v1) / area;
+					float weight1 = Vector2::Cross(v0 - v2, pixel - v2) / area;
+					float weight2 = Vector2::Cross(v1 - v0, pixel - v0) / area;
 
 
 					const float depth0{ triangle[0].position.z };
 					const float depth1{ triangle[1].position.z };
 					const float depth2{ triangle[2].position.z };
 
-					const float interpolatedDepth = depth0 * W0 + depth1 * W1 + depth2 * W2;
+					const float interpolatedDepth = depth0 * weight0 + depth1 * weight1 + depth2 * weight2;
 					//
-					//const float interpolatedDepth{ 1.f / (W0 * (1.f / depth0) + W1 * (1.f / depth1) + W2 * (1.f / depth2)) };
+					//const float interpolatedDepth{ 1.f / (weight0 * (1.f / depth0) + weight1 * (1.f / depth1) + weight2 * (1.f / depth2)) };
 					
 					float depth = m_pDepthBufferPixels[pixelIdx];
 
@@ -337,7 +395,7 @@ void Renderer::DepthBuffer()
 					{
 						m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
 
-						finalColor = (triangle[0].color * W0) + (triangle[1].color * W1) + (triangle[2].color * W2);
+						finalColor = (triangle[0].color * weight0) + (triangle[1].color * weight1) + (triangle[2].color * weight2);
 						// Update Color in Buffer
 						finalColor.MaxToOne();
 
@@ -416,18 +474,18 @@ void Renderer::BoundingBoxOptimization()
 
 				if (Utils::IsPointInTriangle(point, triangle))
 				{
-					float W0 = Vector2::Cross(v2 - v1, pixel - v1) / area;
-					float W1 = Vector2::Cross(v0 - v2, pixel - v2) / area;
-					float W2 = Vector2::Cross(v1 - v0, pixel - v0) / area;
+					float weight0 = Vector2::Cross(v2 - v1, pixel - v1) / area;
+					float weight1 = Vector2::Cross(v0 - v2, pixel - v2) / area;
+					float weight2 = Vector2::Cross(v1 - v0, pixel - v0) / area;
 
 
 					const float depth0{ triangle[0].position.z };
 					const float depth1{ triangle[1].position.z };
 					const float depth2{ triangle[2].position.z };
 
-					const float interpolatedDepth = depth0 * W0 + depth1 * W1 + depth2 * W2;
+					const float interpolatedDepth = depth0 * weight0 + depth1 * weight1 + depth2 * weight2;
 					//
-					//const float interpolatedDepth{ 1.f / (W0 * (1.f / depth0) + W1 * (1.f / depth1) + W2 * (1.f / depth2)) };
+					//const float interpolatedDepth{ 1.f / (weight0 * (1.f / depth0) + weight1 * (1.f / depth1) + weight2 * (1.f / depth2)) };
 
 					float depth = m_pDepthBufferPixels[pixelIdx];
 
@@ -437,7 +495,7 @@ void Renderer::BoundingBoxOptimization()
 					{
 						m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
 
-						finalColor = (triangle[0].color * W0) + (triangle[1].color * W1) + (triangle[2].color * W2);
+						finalColor = (triangle[0].color * weight0) + (triangle[1].color * weight1) + (triangle[2].color * weight2);
 						// Update Color in Buffer
 						finalColor.MaxToOne();
 
@@ -482,7 +540,7 @@ void Renderer::VertexTransformationFunction(const std::vector<Vertex>& vertices_
 	}
 }
 #pragma endregion
-
+#pragma region W02
 void Renderer::W2_QuadNoOptimization()
 {
 	std::vector<Vertex> vertices_world
@@ -559,18 +617,18 @@ void Renderer::W2_QuadNoOptimization()
 
 				if (Utils::IsPointInTriangle(point, triangle))
 				{
-					float W0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
-					float W1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
-					float W2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
+					float weight0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
+					float weight1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
+					float weight2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
 
 
 					const float depth0{ v0.position.z };
 					const float depth1{ v1.position.z };
 					const float depth2{ v2.position.z };
 
-					const float interpolatedDepth = depth0 * W0 + depth1 * W1 + depth2 * W2;
+					const float interpolatedDepth = depth0 * weight0 + depth1 * weight1 + depth2 * weight2;
 					//
-					//const float interpolatedDepth{ 1.f / (W0 * (1.f / depth0) + W1 * (1.f / depth1) + W2 * (1.f / depth2)) };
+					//const float interpolatedDepth{ 1.f / (weight0 * (1.f / depth0) + weight1 * (1.f / depth1) + weight2 * (1.f / depth2)) };
 
 					float depth = m_pDepthBufferPixels[pixelIdx];
 
@@ -580,7 +638,7 @@ void Renderer::W2_QuadNoOptimization()
 					{
 						m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
 
-						finalColor = (v0.color * W0) + (v1.color * W1) + (v2.color * W2);
+						finalColor = (v0.color * weight0) + (v1.color * weight1) + (v2.color * weight2);
 						// Update Color in Buffer
 						finalColor.MaxToOne();
 
@@ -648,51 +706,184 @@ void Renderer::W2_Quad()
 	},
 	};
 
-	std::fill_n(m_pDepthBufferPixels, (m_Width * m_Height), FLT_MAX);
-	SDL_FillRect(m_pBackBuffer, NULL, SDL_MapRGB(m_pBackBuffer->format, 0, 0, 0));
+	
 
 	for (auto& mesh : meshes_world)
 	{
 		VertexTransformationFunction(mesh);
 
-		if (mesh.primitiveTopology == PrimitiveTopology::TriangleStrip)
+		
+		Vertex_Out v0, v1, v2;
+		switch (mesh.primitiveTopology)
+		{
+		case PrimitiveTopology::TriangleStrip:
 		{
 			for (int indicesIndex{}; indicesIndex < mesh.indices.size() - 2; ++indicesIndex)
 			{
 
 				if (indicesIndex % 2 == 0)
 				{
-					Vertex_Out  v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
-					Vertex_Out  v1 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
-					Vertex_Out  v2 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];
-
-					RenderTriangle(v0, v1, v2);
+					  v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
+					  v1 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
+					  v2 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];			
 				}
 				else
 				{
-					Vertex_Out  v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
-					Vertex_Out  v1 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];
-					Vertex_Out  v2 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
+					  v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
+					  v1 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];
+					  v2 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
+				}
 
+				//clipping
+				if (!(m_Camera.ShouldVertexBeClipped(v0.position) || m_Camera.ShouldVertexBeClipped(v1.position) || m_Camera.ShouldVertexBeClipped(v2.position)))
+				{
+					NDCtoScreenSpace(v0, v1, v2);
 					RenderTriangle(v0, v1, v2);
 				}
+				
 			}
 		}
-		if (mesh.primitiveTopology == PrimitiveTopology::TriangleList)
+		break;
+		case PrimitiveTopology::TriangleList:
 		{
 			for (int indicesIndex{}; indicesIndex < mesh.indices.size(); ++indicesIndex)
 			{
-				Vertex_Out v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
-				Vertex_Out v1 = mesh.vertices_out[mesh.indices[++indicesIndex]];
-				Vertex_Out v2 = mesh.vertices_out[mesh.indices[++indicesIndex]];
-				RenderTriangle(v0, v1, v2);
+				 v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
+				 v1 = mesh.vertices_out[mesh.indices[++indicesIndex]];
+				 v2 = mesh.vertices_out[mesh.indices[++indicesIndex]];
+
+				 NDCtoScreenSpace(v0, v1, v2);
+				 RenderTriangle(v0, v1, v2);
 			}
 		}
+		break;
+		}
+		
 	}
 }
+ //week 1 and 2, not correct depth
+//void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2) const
+//{
+//	std::vector<Vertex_Out> triangle
+//	{
+//		v0,
+//		v1,
+//		v2,
+//	};
+//
+//	const Vector2 V0{ v0.position.x, v0.position.y };
+//	const Vector2 V1{ v1.position.x, v1.position.y };
+//	const Vector2 V2{ v2.position.x, v2.position.y };
+//
+//	float area = Vector2::Cross(V1 - V0, V2 - V0);
+//
+//	//bounding box
+//	int minX = std::min({ v0.position.x, v1.position.x, v2.position.x });
+//	int maxX = std::max({ v0.position.x, v1.position.x, v2.position.x });;
+//	int minY = std::min({ v0.position.y, v1.position.y, v2.position.y });;
+//	int maxY = std::max({ v0.position.y, v1.position.y, v2.position.y });;
+//
+//	// Add margin to prevent seethrough lines between quads
+//	const float margin{ 1.f };
+//	minX -= margin;
+//	minY -= margin;
+//	maxX += margin;
+//	maxY += margin;
+//
+//	// Make sure the boundingbox is on the screen
+//	minX = Clamp(minX, 0, m_Width);
+//	minY = Clamp(minY, 0,m_Height);
+//	maxX = Clamp(maxX, 0, m_Width);
+//	maxY = Clamp(maxY, 0, m_Height);
+//	
+//	for (int px{ minX }; px < maxX; ++px)
+//	{
+//		for (int py{ minY }; py < maxY; ++py)
+//		{
+//			ColorRGB finalColor{ 0, 0, 0 };
+//			ColorRGB fromTexture{};
+//
+//			Vector2 pixel{ float(px) + 0.5f, float(py) + 0.5f }; // checking pixel from the center
+//			Vector3 point{ float(px) + 0.5f, float(py) + 0.5f , 0 };
+//			const int pixelIdx{ px + py * m_Width };
+//
+//				//const bool isInTriangle = weight0 > 0 && weight1 > 0 && weight2 > 0;
+//				if (Utils::IsPointInTriangle(point, triangle))
+//				{
+//					float weight0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
+//					float weight1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
+//					float weight2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
+//
+//					//const float depth0{ v0.position.z };
+//					//const float depth1{ v1.position.z };
+//					//const float depth2{ v2.position.z };
+//
+//					//const float interpolatedW{ 1.f / ((weight0 * (1.f / v0.position.z) + (weight1 * (1.f / v1.position.z)) + (weight2 * (1.f / v2.position.z)))) };
+//					//const float interpolatedDepth = CalculateInterpolatedZ(triangle, weight0, weight1, weight2); //interpolated Z
+//
+//					//const float interpolatedW{ 1.f / ((weight0 * (1.f / v0.position.w) + (weight1 * (1.f / v1.position.w)) + (weight2 * (1.f / v2.position.w)))) };
+//					const float interpolatedDepth = CalculateInterpolatedW(triangle, weight0, weight1, weight2);
+//
+//					
+//
+//
+//					float depth = m_pDepthBufferPixels[pixelIdx];
+//
+//					//if (interpolatedDepth < 0.0f || interpolatedDepth > 1.0f)
+//						//continue;
+//
+//
+//					switch (m_Mode)
+//					{
+//					case Mode::Texture:
+//						if (depth > interpolatedDepth)
+//						{
+//							Vector2 interpolatedUV = ((triangle[0].uv / triangle[0].position.z) * weight0 + (triangle[1].uv / triangle[1].position.z) * weight1 + (triangle[2].uv / triangle[2].position.z) * weight2) * interpolatedDepth;
+//
+//							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
+//
+//
+//							fromTexture = { m_pTexture->Sample(interpolatedUV) };
+//
+//							fromTexture.MaxToOne();
+//
+//							m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
+//								static_cast<uint8_t>(fromTexture.r * 255),
+//								static_cast<uint8_t>(fromTexture.g * 255),
+//								static_cast<uint8_t>(fromTexture.b * 255));
+//						}
+//						break;
+//					case Mode::Buffer:
+//						if (depth > interpolatedDepth)
+//						{
+//							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
+//
+//							finalColor = (v0.color * weight0) + (v1.color * weight1) + (v2.color * weight2);
+//							// Update Color in Buffer
+//							finalColor.MaxToOne();
+//
+//							m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
+//								static_cast<uint8_t>(finalColor.r * 255),
+//								static_cast<uint8_t>(finalColor.g * 255),
+//								static_cast<uint8_t>(finalColor.b * 255));
+//						}
+//						break;
+//					}
+//				}
+//		}
+//	}
+//}
+
+#pragma endregion
 
 void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2) const
 {
+	// If a triangle has the same vertex twice, it means it has no surface and can't be rendered.
+	if (v0 == v1 || v1 == v2 || v2 == v0)
+	{
+		return;
+	}
+
 	std::vector<Vertex_Out> triangle
 	{
 		v0,
@@ -703,8 +894,6 @@ void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const 
 	const Vector2 V0{ v0.position.x, v0.position.y };
 	const Vector2 V1{ v1.position.x, v1.position.y };
 	const Vector2 V2{ v2.position.x, v2.position.y };
-
-	float area = Vector2::Cross(V1 - V0, V2 - V0);
 
 	//bounding box
 	int minX = std::min({ v0.position.x, v1.position.x, v2.position.x });
@@ -721,84 +910,137 @@ void Renderer::RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const 
 
 	// Make sure the boundingbox is on the screen
 	minX = Clamp(minX, 0, m_Width);
-	minY = Clamp(minY, 0,m_Height);
+	minY = Clamp(minY, 0, m_Height);
 	maxX = Clamp(maxX, 0, m_Width);
 	maxY = Clamp(maxY, 0, m_Height);
-	
+
+	float area = Vector2::Cross(V1 - V0, V2 - V0);
+
 	for (int px{ minX }; px < maxX; ++px)
 	{
 		for (int py{ minY }; py < maxY; ++py)
 		{
-			ColorRGB finalColor{ 0, 0, 0 };
-			ColorRGB fromTexture{};
-
 			Vector2 pixel{ float(px) + 0.5f, float(py) + 0.5f }; // checking pixel from the center
 			Vector3 point{ float(px) + 0.5f, float(py) + 0.5f , 0 };
 			const int pixelIdx{ px + py * m_Width };
 
-				//const bool isInTriangle = W0 > 0 && W1 > 0 && W2 > 0;
-				if (Utils::IsPointInTriangle(point, triangle))
+			//const bool isInTriangle = weight0 > 0 && weight1 > 0 && weight2 > 0;
+			if (Utils::IsPointInTriangle(point, triangle))
+			{
+				float weight0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
+				float weight1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
+				float weight2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
+
+				const float depth0{ v0.position.z };
+				const float depth1{ v1.position.z };
+				const float depth2{ v2.position.z };
+
+				//const float interpolatedZ{ 1.f / ((weight0 * (1.f / v0.position.z) + (weight1 * (1.f / v1.position.z)) + (weight2 * (1.f / v2.position.z)))) };
+				const float interpolatedDepth = CalculateInterpolatedZ(triangle, weight0, weight1, weight2); //interpolated Z
+
+				
+				//makes sure that the object is not rendered if it is behind camera(otherwise mirrored)  (Frustum clipping)
+				float depth = m_pDepthBufferPixels[pixelIdx];
+				if (depth < interpolatedDepth || interpolatedDepth < 0.f || interpolatedDepth > 1.f) continue;
+				m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
+
+				ColorRGB finalColor{ 0, 0, 0 };
+
+				switch (m_Mode)
 				{
-					float W0 = Vector2::Cross(V2 - V1, pixel - V1) / area;
-					float W1 = Vector2::Cross(V0 - V2, pixel - V2) / area;
-					float W2 = Vector2::Cross(V1 - V0, pixel - V0) / area;
-
-					//const float depth0{ v0.position.z };
-					//const float depth1{ v1.position.z };
-					//const float depth2{ v2.position.z };
-
-					//const float interpolatedW{ 1.f / ((W0 * (1.f / v0.position.z) + (W1 * (1.f / v1.position.z)) + (W2 * (1.f / v2.position.z)))) };
-					const float interpolatedDepth = CalculateInterpolatedZ(triangle, W0, W1, W2); //interpolated Z
-
-					//const float interpolatedW{ 1.f / ((W0 * (1.f / v0.position.w) + (W1 * (1.f / v1.position.w)) + (W2 * (1.f / v2.position.w)))) };
-					const float interpolatedW = CalculateInterpolatedW(triangle, W0, W1, W2);
-
-					
-
-
-					float depth = m_pDepthBufferPixels[pixelIdx];
-
-					//if (interpolatedDepth < 0.0f || interpolatedDepth > 1.0f)
-						//continue;
-
-
-					switch (m_Mode)
+				case Mode::Texture:
 					{
-					case Mode::Texture:
-						if (depth > interpolatedDepth)
-						{
-							Vector2 interpolatedUV = ((triangle[0].uv / triangle[0].position.z) * W0 + (triangle[1].uv / triangle[1].position.z) * W1 + (triangle[2].uv / triangle[2].position.z) * W2) * interpolatedDepth;
-
-							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
-
-
-							fromTexture = { m_pTexture->Sample(interpolatedUV) };
-
-							fromTexture.MaxToOne();
-
-							m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
-								static_cast<uint8_t>(fromTexture.r * 255),
-								static_cast<uint8_t>(fromTexture.g * 255),
-								static_cast<uint8_t>(fromTexture.b * 255));
-						}
-						break;
-					case Mode::Buffer:
-						if (depth > interpolatedDepth)
-						{
-							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
-
-							finalColor = (v0.color * W0) + (v1.color * W1) + (v2.color * W2);
-							// Update Color in Buffer
-							finalColor.MaxToOne();
-
-							m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
-								static_cast<uint8_t>(finalColor.r * 255),
-								static_cast<uint8_t>(finalColor.g * 255),
-								static_cast<uint8_t>(finalColor.b * 255));
-						}
-						break;
+						Vector2 interpolatedUV = ((triangle[0].uv / triangle[0].position.z) * weight0 + (triangle[1].uv / triangle[1].position.z) * weight1 + (triangle[2].uv / triangle[2].position.z) * weight2) * interpolatedDepth;				
+						finalColor = { m_pTexture->Sample(interpolatedUV) };
 					}
+					break;
+				case Mode::Buffer:
+					{					
+						//finalColor = (v0.color * weight0) + (v1.color * weight1) + (v2.color * weight2); //just color no depth visualization
+						const float depthCol{ Remap(interpolatedDepth,0.990f,1.f) };
+						finalColor = { depthCol,depthCol,depthCol };
+					}
+					break;
 				}
+				// Update Color in Buffer
+				finalColor.MaxToOne();
+
+				m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
+					static_cast<uint8_t>(finalColor.r * 255),
+					static_cast<uint8_t>(finalColor.g * 255),
+					static_cast<uint8_t>(finalColor.b * 255));
+			}
 		}
+	}
+	
+}
+
+void Renderer::NDCtoScreenSpace(Vertex_Out& v0, Vertex_Out& v1, Vertex_Out& v2)
+{
+	//NDC --> Screenspace
+	v0.position.x = ((v0.position.x + 1.f) / 2.f) * m_Width;
+	v0.position.y = ((1.f - v0.position.y) / 2.f) * m_Height;
+	v1.position.x = ((v1.position.x + 1.f) / 2.f) * m_Width;
+	v1.position.y = ((1.f - v1.position.y) / 2.f) * m_Height;
+	v2.position.x = ((v2.position.x + 1.f) / 2.f) * m_Width;
+	v2.position.y = ((1.f - v2.position.y) / 2.f) * m_Height;
+}
+
+void Renderer::RenderMeshes(std::vector<Mesh> meshes_world)
+{
+	for (auto& mesh : meshes_world)
+	{
+		VertexTransformationFunction(mesh);
+
+
+		Vertex_Out v0, v1, v2;
+		switch (mesh.primitiveTopology)
+		{
+		case PrimitiveTopology::TriangleStrip:
+		{
+			for (int indicesIndex{}; indicesIndex < mesh.indices.size() - 2; indicesIndex += 3)
+			{
+
+				if (indicesIndex & 1)
+				{
+					v0 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];
+					v1 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
+					v2 = mesh.vertices_out[mesh.indices[indicesIndex]];
+				}
+				else
+				{
+					v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
+					v1 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
+					v2 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];
+					
+				}
+
+				
+
+				//clipping
+				if (!(m_Camera.ShouldVertexBeClipped(v0.position) || m_Camera.ShouldVertexBeClipped(v1.position) || m_Camera.ShouldVertexBeClipped(v2.position)))
+				{
+					NDCtoScreenSpace(v0, v1, v2);
+					RenderTriangle(v0, v1, v2);
+				}
+
+			}
+		}
+		break;
+		case PrimitiveTopology::TriangleList:
+		{
+			for (int indicesIndex{}; indicesIndex < mesh.indices.size(); ++indicesIndex)
+			{
+				v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
+				v1 = mesh.vertices_out[mesh.indices[++indicesIndex]];
+				v2 = mesh.vertices_out[mesh.indices[++indicesIndex]];
+
+				NDCtoScreenSpace(v0, v1, v2);
+				RenderTriangle(v0, v1, v2);
+			}
+		}
+		break;
+		}
+
 	}
 }

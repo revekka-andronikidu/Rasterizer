@@ -56,16 +56,42 @@ namespace dae
 		float m_AspectRatio{};
 
 		bool m_F4Held{false};
+		bool m_F5Held{ false };
+		bool m_F6Held{ false };
+		bool m_F7Held{ false };
 
-		Texture* m_pTexture;
+		bool m_EnableNormalMap{ true };
+		bool m_EnableRotating{ false };
 
-		enum class Mode
+		
+		Texture* m_pDiffuseTexture;
+		Texture* m_pSpecularTexture;
+		Texture* m_pGlossinessTexture;
+		Texture* m_pNormalTexture;
+
+		const float m_SpecularShininess{ 25.0f };
+
+		enum class RenderMode
 		{
 			Texture,
 			Buffer,
 			END
 		};
-		Mode m_Mode{};
+
+		enum class ShadingMode
+		{
+			ObservedArea,	
+			Diffuse,		
+			Specular,		
+			Combined,
+			Ambient,
+			END
+		};
+
+		
+
+		RenderMode m_RenderMode{RenderMode::Texture};
+		ShadingMode m_ShadingMode{ShadingMode::Combined};
 
 		Mesh* m_pMesh;
 
@@ -82,7 +108,9 @@ namespace dae
 		void RenderTriangle(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2) const;
 		void NDCtoScreenSpace(Vertex_Out& v0, Vertex_Out& v1, Vertex_Out& v2);
 		void RenderMeshes(std::vector<Mesh> meshes_world);
-		//void RenderTriangle(const Vertex& v0,const Vertex& v1,const Vertex& v2);
+		void PixelShading(const Vertex_Out& v) const;
+		//void Clipping( Vertex_Out& v0,  Vertex_Out& v1,  Vertex_Out& v2);
+		
 		
 	};
 }

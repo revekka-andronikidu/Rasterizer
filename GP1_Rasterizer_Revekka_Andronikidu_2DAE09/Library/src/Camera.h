@@ -5,6 +5,7 @@
 
 #include "Maths.h"
 #include "Timer.h"
+#include <iostream>
 
 namespace dae
 {
@@ -34,7 +35,7 @@ namespace dae
 		float nearPlane{ 0.1f };
 		float farPlane{ 100.f };
 
-		const float movementSpeed{ 3.f };
+		const float movementSpeed{ 5.f };
 
 		Matrix invViewMatrix{};
 		Matrix viewMatrix{};
@@ -89,7 +90,7 @@ namespace dae
 			//Camera Update Logic
 			//...
 
-			KeyboardInput();
+			KeyboardInput(deltaTime);
 			MouseInput(deltaTime);
 
 			//Update Matrices
@@ -97,13 +98,29 @@ namespace dae
 			CalculateProjectionMatrix(); //Try to optimize this - should only be called once or when fov/aspectRatio changes
 		}
 
-		inline bool ShouldVertexBeClipped(const Vector4& v) const
-		{
-			return v.x < -1.f || v.x > 1.f || v.y < -1.f || v.y > 1.f;
-		}
+		
 
-		void KeyboardInput()
+		void KeyboardInput(float deltaTime)
 		{
+			const float speed{ 15.f };
+			const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
+
+			if (pKeyboardState[SDL_SCANCODE_W] || pKeyboardState[SDL_SCANCODE_UP])
+			{
+				origin += up * -deltaTime * speed;
+			}
+			if (pKeyboardState[SDL_SCANCODE_S] || pKeyboardState[SDL_SCANCODE_DOWN])
+			{
+				origin -= up * -deltaTime * speed;
+			}
+			if (pKeyboardState[SDL_SCANCODE_D] || pKeyboardState[SDL_SCANCODE_RIGHT])
+			{
+				origin += right * -deltaTime * speed;
+			}
+			if (pKeyboardState[SDL_SCANCODE_A] || pKeyboardState[SDL_SCANCODE_LEFT])
+			{
+				origin -= right * -deltaTime * speed;
+			}
 
 		}
 		void MouseInput(float deltaTime)
@@ -127,9 +144,12 @@ namespace dae
 
 			if (mouseState & SDL_BUTTON(SDL_BUTTON_RIGHT) && !(mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)))
 			{
+				
+				totalYaw += deltaTime * static_cast<float>(mouseX) ;
+				totalPitch += deltaTime * static_cast<float>(mouseY);
 
-				origin += up * (-mouseY * movementSpeed * deltaTime);
-				origin += right * (-mouseX * movementSpeed * deltaTime);
+				const Matrix finalRotation{ Matrix::CreateRotation(totalPitch, totalYaw, 0) };
+				forward = finalRotation.TransformVector(Vector3::UnitZ);
 			}
 		}
 	};

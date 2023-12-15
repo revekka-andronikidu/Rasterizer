@@ -4,6 +4,7 @@
 #include "Maths.h"
 #include "DataTypes.h"
 
+
 //#define DISABLE_OBJ
 
 namespace dae
@@ -225,6 +226,11 @@ namespace dae
 			has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
 
 			return !(has_neg && has_pos);
+		}
+
+		bool IsVertexInFrustrum(const Vector4& vertex, float min = -1.f, float max = 1.f)
+		{
+			return vertex.x >= min && vertex.x <= max && vertex.y >= min && vertex.y <= max && vertex.z >= 0.f && vertex.z <= max;
 		}
 
 		float CalculateInterpolatedZ(const std::vector<Vertex_Out>& triangle, const float w0, const float w1, const float w2)

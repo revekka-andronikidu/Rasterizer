@@ -43,31 +43,32 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	
 
 	//meshes
-	/*m_pMesh = new Mesh
-	{
-		{
-			Vertex{{ -3.0f,  3.0f, -2.0f},{1,1,1},{ 0.0f, 0.0f}},
-			Vertex{ {  0.0f,  3.0f, -2.0f},{1,1,1},{ 0.5f, 0.0f} },
-			Vertex{ {  3.0f,  3.0f, -2.0f},{1,1,1},{ 1.0f, 0.0f} },
-			Vertex{ { -3.0f,  0.0f, -2.0f},{1,1,1},{ 0.0f, 0.5f} },
-			Vertex{ {  0.0f,  0.0f, -2.0f},{1,1,1},{ 0.5f, 0.5f} },
-			Vertex{ {  3.0f,  0.0f, -2.0f},{1,1,1},{ 1.0f, 0.5f} },
-			Vertex{ { -3.0f, -3.0f, -2.0f},{1,1,1},{ 0.0f, 1.0f} },
-			Vertex{ {  0.0f, -3.0f, -2.0f},{1,1,1},{ 0.5f, 1.0f} },
-			Vertex{ {  3.0f, -3.0f, -2.0f},{1,1,1},{ 1.0f, 1.0f} },
-		},
-		{
-			3,0,4,1,5,2,
-			2,6,
-			6,3,7,4,8,5
-		},
-		PrimitiveTopology::TriangleStrip,
-	};*/
+	//m_pMesh = new Mesh
+	//{
+	//	{
+	//		Vertex{{ -3.0f,  3.0f, -2.0f},{1,1,1},{ 0.0f, 0.0f}},
+	//		Vertex{ {  0.0f,  3.0f, -2.0f},{1,1,1},{ 0.5f, 0.0f} },
+	//		Vertex{ {  3.0f,  3.0f, -2.0f},{1,1,1},{ 1.0f, 0.0f} },
+	//		Vertex{ { -3.0f,  0.0f, -2.0f},{1,1,1},{ 0.0f, 0.5f} },
+	//		Vertex{ {  0.0f,  0.0f, -2.0f},{1,1,1},{ 0.5f, 0.5f} },
+	//		Vertex{ {  3.0f,  0.0f, -2.0f},{1,1,1},{ 1.0f, 0.5f} },
+	//		Vertex{ { -3.0f, -3.0f, -2.0f},{1,1,1},{ 0.0f, 1.0f} },
+	//		Vertex{ {  0.0f, -3.0f, -2.0f},{1,1,1},{ 0.5f, 1.0f} },
+	//		Vertex{ {  3.0f, -3.0f, -2.0f},{1,1,1},{ 1.0f, 1.0f} },
+	//	},
+	//	{
+	//		3,0,4,1,5,2,
+	//		2,6,
+	//		6,3,7,4,8,5
+	//	},
+	//	PrimitiveTopology::TriangleStrip,
+	//};
 
 	m_pMesh = new Mesh();
 	Utils::ParseOBJ("Resources/vehicle.obj", m_pMesh->vertices, m_pMesh->indices);
 	
-	//m_pMesh->Translate(0.f, 0.f, 10.f);
+	m_pMesh->Translate(0.f, 0.f, 10.f);
+	m_pMesh->primitiveTopology = PrimitiveTopology::TriangleList;
 	
 }
 
@@ -361,7 +362,7 @@ void Renderer::RenderMeshes(std::vector<Mesh> meshes_world)
 		{
 		case PrimitiveTopology::TriangleStrip:
 		{
-			for (int indicesIndex{}; indicesIndex < mesh.indices.size() - 2; indicesIndex += 3)
+			for (int indicesIndex{}; indicesIndex < mesh.indices.size() - 2; indicesIndex++)
 			{
 
 				if (indicesIndex & 1)
@@ -394,14 +395,18 @@ void Renderer::RenderMeshes(std::vector<Mesh> meshes_world)
 		break;
 		case PrimitiveTopology::TriangleList:
 		{
-			for (int indicesIndex{}; indicesIndex < mesh.indices.size(); ++indicesIndex)
+			for (int indicesIndex{}; indicesIndex < mesh.indices.size(); indicesIndex += 3)
 			{
 				v0 = mesh.vertices_out[mesh.indices[indicesIndex]];
-				v1 = mesh.vertices_out[mesh.indices[++indicesIndex]];
-				v2 = mesh.vertices_out[mesh.indices[++indicesIndex]];
+				v1 = mesh.vertices_out[mesh.indices[1 + indicesIndex]];
+				v2 = mesh.vertices_out[mesh.indices[2 + indicesIndex]];
 
-				NDCtoScreenSpace(v0, v1, v2);
-				RenderTriangle(v0, v1, v2);
+				//clipping
+				if (IsVertexInFrustrum(v0.position) && IsVertexInFrustrum(v1.position) && IsVertexInFrustrum(v2.position))
+				{
+					NDCtoScreenSpace(v0, v1, v2);
+					RenderTriangle(v0, v1, v2);
+				}
 			}
 		}
 		break;
@@ -445,14 +450,14 @@ void Renderer::PixelShading(const Vertex_Out& v) const
 			break;
 		case ShadingMode::Diffuse:
 
-			finalColor += lightIntensity * observedArea * lambert;
+			finalColor = lightIntensity * observedArea * lambert;
 
 			break;
 		case ShadingMode::Specular:
-			finalColor += specular * observedArea;
+			finalColor = specular * observedArea;
 			break;
 		case ShadingMode::Combined:
-			finalColor += lightIntensity * observedArea * lambert + specular;
+			finalColor = lightIntensity * observedArea * lambert + specular;
 			break;
 		case ShadingMode::Ambient:
 			finalColor = ColorRGB{ 0.3f, 0.3f, 0.3f };

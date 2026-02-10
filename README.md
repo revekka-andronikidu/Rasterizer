@@ -2,7 +2,7 @@
 A CPU-based software rasterizer written in C++ using SDL2, built to explore how a modern 3D graphics pipeline works under the hood — without using OpenGL, DirectX, or Vulkan.
 The rasterizer  was built as part of the Graphics Programming 1 course and supports perspective projection, depth buffering, texture mapping, normal mapping, and basic BRDF-based shading, all implemented on the CPU.
 
-![Raytracer]()
+![Raytracer](Rasterizer.gif)
 
 ## Features
 - Triangle rasterization in software
